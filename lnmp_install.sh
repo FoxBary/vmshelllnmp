@@ -25,41 +25,61 @@ detect_os() {
     fi
 }
 
-# Update package manager
-update_package_manager() {
-    echo -e "${YELLOW}Updating package manager...${NC}"
+# Show advertisement and confirmation
+show_ad() {
+    echo -e "${YELLOW}CMI线路高速网络云计算中心和美国云计算中心${NC}"
+    echo "小巧灵动的VPS为全球网络提供全方位服务"
+    echo "官网订购地址: https://vmshell.com/"
+    echo "企业高速网络: https://tototel.com/"
+    echo "TeleGram讨论: https://t.me/vmshellhk"
+    echo "TeleGram频道: https://t.me/vmshell"
+    echo "提供微信/支付宝/美国PayPal/USDT/比特币/支付(3日内无条件退款)"
+    read -p "请确认安装LNMP脚本？(y/n): " confirm
+    if [ "$confirm" != "y" ] && [ "$confirm" != "Y" ]; then
+        echo -e "${RED}安装已取消${NC}"
+        exit 0
+    fi
+}
+
+# Update system and install basic tools
+update_and_install_tools() {
+    echo -e "${YELLOW}更新系统并安装基础工具...${NC}"
     case $OS in
         "centos")
             yum update -y
-            yum install -y wget curl
+            yum install -y curl vim wget nano screen unzip zip cronie
+            systemctl enable crond
+            systemctl start crond
             ;;
         "ubuntu"|"debian")
             apt update -y
-            apt install -y wget curl
+            apt install -y curl vim wget nano screen unzip zip cron
+            systemctl enable cron
+            systemctl start cron
             ;;
     esac
+    echo -e "${GREEN}系统更新和基础工具安装完成${NC}"
 }
 
 # Version selection menu
 select_version() {
-    echo -e "${YELLOW}Select Nginx version:${NC}"
-    echo "1) 1.22.1 (Stable)"
-    echo "2) 1.23.3 (Development)"
-    read -p "Enter choice (1-2): " nginx_choice
+    echo -e "${YELLOW}选择 Nginx 版本:${NC}"
+    echo "1) 1.22.1 (稳定版)"
+    echo "2) 1.23.3 (开发版)"
+    read -p "输入选择 (1-2): " nginx_choice
     
-    echo -e "${YELLOW}Select MySQL version:${NC}"
+    echo -e "${YELLOW}选择 MySQL 版本:${NC}"
     echo "1) 5.7.42"
     echo "2) 8.0.32"
-    read -p "Enter choice (1-2): " mysql_choice
+    read -p "输入选择 (1-2): " mysql_choice
     
-    echo -e "${YELLOW}Select PHP version:${NC}"
+    echo -e "${YELLOW}选择 PHP 版本:${NC}"
     echo "1) 7.4.33"
     echo "2) 8.0.28"
     echo "3) 8.1.15"
     echo "4) 8.2.2"
-    read -p "Enter choice (1-4): " php_choice
+    read -p "输入选择 (1-4): " php_choice
     
-    # Set versions based on choices
     case $nginx_choice in
         1) NGINX_VER="1.22.1" ;;
         2) NGINX_VER="1.23.3" ;;
@@ -83,60 +103,66 @@ select_version() {
 
 # Set MySQL root password
 set_mysql_password() {
-    read -s -p "Enter MySQL root password: " MYSQL_ROOT_PASSWORD
+    read -s -p "输入 MySQL root 密码: " MYSQL_ROOT_PASSWORD
     echo
-    read -s -p "Confirm MySQL root password: " MYSQL_ROOT_PASSWORD_CONFIRM
+    read -s -p "确认 MySQL root 密码: " MYSQL_ROOT_PASSWORD_CONFIRM
     echo
     if [ "$MYSQL_ROOT_PASSWORD" != "$MYSQL_ROOT_PASSWORD_CONFIRM" ]; then
-        echo -e "${RED}Passwords do not match!${NC}"
+        echo -e "${RED}密码不匹配!${NC}"
         exit 1
     fi
 }
 
-# Install LNMP
+# Install LNMP with progress
 install_lnmp() {
-    echo -e "${YELLOW}Installing LNMP...${NC}"
-    
     case $OS in
         "centos")
-            # Install Nginx
+            echo -e "${YELLOW}正在安装 Nginx...${NC}"
             yum install -y epel-release
             yum install -y nginx
-            
-            # Install MySQL/MariaDB
+            echo -e "${GREEN}Nginx $NGINX_VER 安装完成${NC}"
+
+            echo -e "${YELLOW}正在安装 MySQL/MariaDB...${NC}"
             yum install -y mariadb-server mariadb
-            
-            # Install PHP
+            echo -e "${GREEN}MySQL $MYSQL_VER 安装完成${NC}"
+
+            echo -e "${YELLOW}正在安装 PHP...${NC}"
             yum install -y http://rpms.remirepo.net/enterprise/remi-release-7.rpm
             yum-config-manager --enable remi-php${PHP_VER//./}
             yum install -y php php-fpm php-mysqlnd php-common
+            echo -e "${GREEN}PHP $PHP_VER 安装完成${NC}"
             ;;
             
         "ubuntu"|"debian")
-            # Install Nginx
+            echo -e "${YELLOW}正在安装 Nginx...${NC}"
             apt install -y nginx
-            
-            # Install MySQL
+            echo -e "${GREEN}Nginx $NGINX_VER 安装完成${NC}"
+
+            echo -e "${YELLOW}正在安装 MySQL...${NC}"
             apt install -y mysql-server
-            
-            # Install PHP
+            echo -e "${GREEN}MySQL $MYSQL_VER 安装完成${NC}"
+
+            echo -e "${YELLOW}正在安装 PHP...${NC}"
             apt install -y software-properties-common
-            add-apt-repository -y ppa:ondrej/php
+            add-apt-repository -y ppa:ondrej/php || true
             apt update
             apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-common
+            echo -e "${GREEN}PHP $PHP_VER 安装完成${NC}"
             ;;
     esac
     
     # Configure MySQL
+    echo -e "${YELLOW}正在配置 MySQL...${NC}"
     mysql -u root <<EOF
 ALTER USER 'root'@'localhost' IDENTIFIED BY '${MYSQL_ROOT_PASSWORD}';
 FLUSH PRIVILEGES;
 EOF
+    echo -e "${GREEN}MySQL 配置完成${NC}"
 }
 
 # Start services
 start_services() {
-    echo -e "${YELLOW}Starting services...${NC}"
+    echo -e "${YELLOW}正在启动服务...${NC}"
     case $OS in
         "centos")
             systemctl enable nginx mariadb php-fpm
@@ -147,11 +173,12 @@ start_services() {
             systemctl start nginx mysql php${PHP_VER}-fpm
             ;;
     esac
+    echo -e "${GREEN}服务启动完成${NC}"
 }
 
 # Uninstall function
 uninstall_lnmp() {
-    echo -e "${YELLOW}Uninstalling LNMP...${NC}"
+    echo -e "${YELLOW}正在卸载 LNMP...${NC}"
     case $OS in
         "centos")
             systemctl stop nginx mariadb php-fpm
@@ -164,34 +191,34 @@ uninstall_lnmp() {
             rm -rf /etc/nginx /var/lib/mysql /etc/php
             ;;
     esac
-    echo -e "${GREEN}LNMP has been uninstalled${NC}"
+    echo -e "${GREEN}LNMP 已卸载${NC}"
 }
 
 # Main execution
-echo -e "${GREEN}LNMP Installation Script${NC}"
-echo "1) Install LNMP"
-echo "2) Uninstall LNMP"
-read -p "Select an option (1-2): " choice
+echo -e "${GREEN}LNMP 安装脚本${NC}"
+detect_os
+show_ad
+update_and_install_tools
+echo "1) 安装 LNMP"
+echo "2) 卸载 LNMP"
+read -p "选择操作 (1-2): " choice
 
 case $choice in
     1)
-        detect_os
-        update_package_manager
         select_version
         set_mysql_password
         install_lnmp
         start_services
-        echo -e "${GREEN}LNMP installation completed!${NC}"
-        echo "Nginx version: $NGINX_VER"
-        echo "MySQL version: $MYSQL_VER"
-        echo "PHP version: $PHP_VER"
+        echo -e "${GREEN}LNMP 安装完成!${NC}"
+        echo "Nginx 版本: $NGINX_VER"
+        echo "MySQL 版本: $MYSQL_VER"
+        echo "PHP 版本: $PHP_VER"
         ;;
     2)
-        detect_os
         uninstall_lnmp
         ;;
     *)
-        echo -e "${RED}Invalid option${NC}"
+        echo -e "${RED}无效选项${NC}"
         exit 1
         ;;
 esac
