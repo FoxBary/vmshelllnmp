@@ -20,7 +20,7 @@ detect_os() {
             OS="debian"
         fi
     else
-        echo -e "${RED}Unsupported operating system!${NC}"
+        echo -e "${RED}不支持的操作系统!${NC}"
         exit 1
     fi
 }
@@ -87,17 +87,17 @@ select_version() {
     esac
     
     case $mysql_choice in
-        1) MYSQL_VER="5.7.42" ;;
-        2) MYSQL_VER="8.0.32" ;;
-        *) MYSQL_VER="8.0.32" ;;
+        1) MYSQL_VER="5.7.42"; MYSQL_PKG="5.7" ;;
+        2) MYSQL_VER="8.0.32"; MYSQL_PKG="8.0" ;;
+        *) MYSQL_VER="8.0.32"; MYSQL_PKG="8.0" ;;
     esac
     
     case $php_choice in
-        1) PHP_VER="7.4.33" ;;
-        2) PHP_VER="8.0.28" ;;
-        3) PHP_VER="8.1.15" ;;
-        4) PHP_VER="8.2.2" ;;
-        *) PHP_VER="8.0.28" ;;
+        1) PHP_VER="7.4.33"; PHP_PKG="7.4" ;;
+        2) PHP_VER="8.0.28"; PHP_PKG="8.0" ;;
+        3) PHP_VER="8.1.15"; PHP_PKG="8.1" ;;
+        4) PHP_VER="8.2.2"; PHP_PKG="8.2" ;;
+        *) PHP_VER="8.0.28"; PHP_PKG="8.0" ;;
     esac
 }
 
@@ -113,12 +113,36 @@ set_mysql_password() {
     fi
 }
 
+# Add third-party repositories
+add_repositories() {
+    case $OS in
+        "centos")
+            yum install -y epel-release
+            curl -o /etc/yum.repos.d/remi.repo http://rpms.remirepo.net/enterprise/remi-release-7.rpm
+            ;;
+        "debian")
+            # Add MySQL APT repository
+            wget -O mysql-apt-config.deb https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
+            dpkg -i mysql-apt-config.deb
+            rm mysql-apt-config.deb
+            # Add PHP Sury repository
+            apt install -y lsb-release ca-certificates apt-transport-https
+            wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
+            echo "deb https://packages.sury.org/php/ $(lsb_release -sc) main" > /etc/apt/sources.list.d/php.list
+            apt update
+            ;;
+        "ubuntu")
+            add-apt-repository -y ppa:ondrej/php || true
+            apt update
+            ;;
+    esac
+}
+
 # Install LNMP with progress
 install_lnmp() {
     case $OS in
         "centos")
             echo -e "${YELLOW}正在安装 Nginx...${NC}"
-            yum install -y epel-release
             yum install -y nginx
             echo -e "${GREEN}Nginx $NGINX_VER 安装完成${NC}"
 
@@ -127,8 +151,7 @@ install_lnmp() {
             echo -e "${GREEN}MySQL $MYSQL_VER 安装完成${NC}"
 
             echo -e "${YELLOW}正在安装 PHP...${NC}"
-            yum install -y http://rpms.remirepo.net/enterprise/remi-release-7.rpm
-            yum-config-manager --enable remi-php${PHP_VER//./}
+            yum-config-manager --enable remi-php${PHP_PKG//./}
             yum install -y php php-fpm php-mysqlnd php-common
             echo -e "${GREEN}PHP $PHP_VER 安装完成${NC}"
             ;;
@@ -139,14 +162,11 @@ install_lnmp() {
             echo -e "${GREEN}Nginx $NGINX_VER 安装完成${NC}"
 
             echo -e "${YELLOW}正在安装 MySQL...${NC}"
-            apt install -y mysql-server
+            apt install -y mysql-server-${MYSQL_PKG} || apt install -y mariadb-server
             echo -e "${GREEN}MySQL $MYSQL_VER 安装完成${NC}"
 
             echo -e "${YELLOW}正在安装 PHP...${NC}"
-            apt install -y software-properties-common
-            add-apt-repository -y ppa:ondrej/php || true
-            apt update
-            apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-common
+            apt install -y php${PHP_PKG} php${PHP_PKG}-fpm php${PHP_PKG}-mysql php${PHP_PKG}-common
             echo -e "${GREEN}PHP $PHP_VER 安装完成${NC}"
             ;;
     esac
@@ -160,17 +180,23 @@ EOF
     echo -e "${GREEN}MySQL 配置完成${NC}"
 }
 
-# Start services
+# Start services and configure firewall for CentOS
 start_services() {
     echo -e "${YELLOW}正在启动服务...${NC}"
     case $OS in
         "centos")
             systemctl enable nginx mariadb php-fpm
             systemctl start nginx mariadb php-fpm
+            # Open port 3306
+            if command -v firewall-cmd >/dev/null; then
+                firewall-cmd --permanent --add-port=3306/tcp
+                firewall-cmd --reload
+                echo -e "${GREEN}已为 CentOS 开启 3306 端口${NC}"
+            fi
             ;;
         "ubuntu"|"debian")
-            systemctl enable nginx mysql php${PHP_VER}-fpm
-            systemctl start nginx mysql php${PHP_VER}-fpm
+            systemctl enable nginx mysql php${PHP_PKG}-fpm
+            systemctl start nginx mysql php${PHP_PKG}-fpm
             ;;
     esac
     echo -e "${GREEN}服务启动完成${NC}"
@@ -199,6 +225,7 @@ echo -e "${GREEN}LNMP 安装脚本${NC}"
 detect_os
 show_ad
 update_and_install_tools
+add_repositories
 echo "1) 安装 LNMP"
 echo "2) 卸载 LNMP"
 read -p "选择操作 (1-2): " choice
