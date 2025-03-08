@@ -16,7 +16,7 @@ fi
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS=$ID
-    VERSION_CODENAME=$VERSION_CODENAME
+    VERSION_CODENAME=${VERSION_CODENAME:-$VERSION_ID}
 else
     echo -e "${RED}无法检测操作系统${NC}"
     exit 1
@@ -27,16 +27,20 @@ install_curl_wget() {
     echo -e "${YELLOW}检查并安装curl和wget...${NC}"
     if ! command -v curl &> /dev/null || ! command -v wget &> /dev/null; then
         echo -e "${YELLOW}curl或wget未安装，正在安装...${NC}"
-        if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-            apt update -y || { echo -e "${RED}更新失败，请检查网络${NC}"; exit 1; }
-            apt install -y curl wget || { echo -e "${RED}安装失败${NC}"; exit 1; }
-        elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-            yum update -y || { echo -e "${RED}更新失败，请检查网络${NC}"; exit 1; }
-            yum install -y curl wget || { echo -e "${RED}安装失败${NC}"; exit 1; }
-        else
-            echo -e "${RED}不支持的操作系统${NC}"
-            exit 1
-        fi
+        case $OS in
+            ubuntu|debian)
+                apt update -y || { echo -e "${RED}更新失败，请检查网络${NC}"; exit 1; }
+                apt install -y curl wget || { echo -e "${RED}安装失败${NC}"; exit 1; }
+                ;;
+            centos|rhel|fedora)
+                yum update -y || dnf update -y || { echo -e "${RED}更新失败，请检查网络${NC}"; exit 1; }
+                yum install -y curl wget || dnf install -y curl wget || { echo -e "${RED}安装失败${NC}"; exit 1; }
+                ;;
+            *)
+                echo -e "${RED}不支持的操作系统: $OS${NC}"
+                exit 1
+                ;;
+        esac
     else
         echo -e "${GREEN}curl和wget已安装${NC}"
     fi
@@ -47,11 +51,18 @@ install_git() {
     echo -e "${YELLOW}检查并安装Git...${NC}"
     if ! command -v git &> /dev/null; then
         echo -e "${YELLOW}Git未安装，正在安装...${NC}"
-        if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-            apt install -y git || { echo -e "${RED}Git安装失败${NC}"; exit 1; }
-        elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-            yum install -y git || { echo -e "${RED}Git安装失败${NC}"; exit 1; }
-        fi
+        case $OS in
+            ubuntu|debian)
+                apt install -y git || { echo -e "${RED}Git安装失败${NC}"; exit 1; }
+                ;;
+            centos|rhel|fedora)
+                yum install -y git || dnf install -y git || { echo -e "${RED}Git安装失败${NC}"; exit 1; }
+                ;;
+            *)
+                echo -e "${RED}不支持的操作系统: $OS${NC}"
+                exit 1
+                ;;
+        esac
     else
         echo -e "${GREEN}Git已安装${NC}"
     fi
@@ -61,16 +72,24 @@ install_git() {
 # 安装依赖函数
 install_dependencies() {
     echo -e "${YELLOW}正在更新系统并安装基本依赖...${NC}"
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        apt update -y && apt upgrade -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
-        apt install -y unzip software-properties-common || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        yum update -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
-        yum install -y epel-release || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
-    else
-        echo -e "${RED}不支持的操作系统${NC}"
-        exit 1
-    fi
+    case $OS in
+        ubuntu|debian)
+            apt update -y && apt upgrade -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
+            apt install -y unzip software-properties-common || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
+            ;;
+        centos|rhel)
+            yum update -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
+            yum install -y epel-release || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
+            ;;
+        fedora)
+            dnf update -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
+            dnf install -y unzip || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
+            ;;
+        *)
+            echo -e "${RED}不支持的操作系统: $OS${NC}"
+            exit 1
+            ;;
+    esac
 }
 
 # 检查并安装Node.js和npm
@@ -78,13 +97,20 @@ install_nodejs_npm() {
     echo -e "${YELLOW}检查并安装Node.js和npm...${NC}"
     if ! command -v node &> /dev/null || ! command -v npm &> /dev/null; then
         echo -e "${YELLOW}Node.js或npm未安装，正在安装...${NC}"
-        if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-            curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-            apt install -y nodejs || { echo -e "${RED}Node.js安装失败${NC}"; exit 1; }
-        elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-            curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-            yum install -y nodejs || { echo -e "${RED}Node.js安装失败${NC}"; exit 1; }
-        fi
+        case $OS in
+            ubuntu|debian)
+                curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
+                apt install -y nodejs || { echo -e "${RED}Node.js安装失败${NC}"; exit 1; }
+                ;;
+            centos|rhel|fedora)
+                curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
+                yum install -y nodejs || dnf install -y nodejs || { echo -e "${RED}Node.js安装失败${NC}"; exit 1; }
+                ;;
+            *)
+                echo -e "${RED}不支持的操作系统: $OS${NC}"
+                exit 1
+                ;;
+        esac
     else
         echo -e "${GREEN}Node.js和npm已安装${NC}"
     fi
@@ -97,23 +123,30 @@ install_nginx() {
     echo "1. Nginx 1.20"
     echo "2. Nginx 1.21"
     read -p "请选择Nginx版本 [1-2]: " nginx_choice
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        case $nginx_choice in
-            1) apt install -y nginx=1.20.* ;;
-            2) apt install -y nginx=1.21.* ;;
-            *) echo -e "${RED}无效选项，使用Nginx 1.21${NC}"; apt install -y nginx=1.21.* ;;
-        esac
-        systemctl enable nginx
-        systemctl start nginx
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        case $nginx_choice in
-            1) yum install -y nginx-1.20.* ;;
-            2) yum install -y nginx-1.21.* ;;
-            *) echo -e "${RED}无效选项，使用Nginx 1.21${NC}"; yum install -y nginx-1.21.* ;;
-        esac
-        systemctl enable nginx
-        systemctl start nginx
-    fi
+    case $OS in
+        ubuntu|debian)
+            case $nginx_choice in
+                1) apt install -y nginx=1.20.* ;;
+                2) apt install -y nginx=1.21.* ;;
+                *) echo -e "${RED}无效选项，使用Nginx 1.21${NC}"; apt install -y nginx=1.21.* ;;
+            esac
+            systemctl enable nginx
+            systemctl start nginx
+            ;;
+        centos|rhel|fedora)
+            case $nginx_choice in
+                1) yum install -y nginx-1.20.* || dnf install -y nginx-1.20.* ;;
+                2) yum install -y nginx-1.21.* || dnf install -y nginx-1.21.* ;;
+                *) echo -e "${RED}无效选项，使用Nginx 1.21${NC}"; yum install -y nginx-1.21.* || dnf install -y nginx-1.21.* ;;
+            esac
+            systemctl enable nginx
+            systemctl start nginx
+            ;;
+        *)
+            echo -e "${RED}不支持的操作系统: $OS${NC}"
+            exit 1
+            ;;
+    esac
 }
 
 # 安装MySQL（仅提供5.7和8.2版本）
@@ -123,41 +156,54 @@ install_mariadb() {
     echo "2. MySQL 8.2"
     read -p "请选择MySQL版本 [1-2]: " db_choice
 
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        case $db_choice in
-            1) 
-                wget https://dev.mysql.com/get/mysql-apt-config_0.8.23-1_all.deb
-                dpkg -i mysql-apt-config_0.8.23-1_all.deb
-                apt update -y
-                apt install -y mysql-server=5.7.* ;;
-            2) 
-                wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
-                dpkg -i mysql-apt-config_0.8.29-1_all.deb
-                apt update -y
-                apt install -y mysql-server ;;
-            *) echo -e "${RED}无效选项，使用MySQL 8.2${NC}"; 
-                wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
-                dpkg -i mysql-apt-config_0.8.29-1_all.deb
-                apt update -y
-                apt install -y mysql-server ;;
-        esac
-        systemctl enable mysql
-        systemctl start mysql
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        case $db_choice in
-            1) 
-                yum install -y https://dev.mysql.com/get/mysql57-community-release-el$(rpm -E %rhel)-11.noarch.rpm
-                yum install -y mysql-community-server-5.7.* ;;
-            2) 
-                yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm
-                yum install -y mysql-community-server ;;
-            *) echo -e "${RED}无效选项，使用MySQL 8.2${NC}"; 
-                yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm
-                yum install -y mysql-community-server ;;
-        esac
-        systemctl enable mysqld
-        systemctl start mysqld
-    fi
+    case $OS in
+        ubuntu|debian)
+            case $db_choice in
+                1) 
+                    wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.23-1_all.deb
+                    dpkg -i mysql-apt-config_0.8.23-1_all.deb
+                    apt update -y
+                    apt install -y mysql-server=5.7.* ;;
+                2) 
+                    wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
+                    dpkg -i mysql-apt-config_0.8.29-1_all.deb
+                    apt update -y
+                    apt install -y mysql-server ;;
+                *) echo -e "${RED}无效选项，使用MySQL 8.2${NC}"; 
+                    wget -q https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
+                    dpkg -i mysql-apt-config_0.8.29-1_all.deb
+                    apt update -y
+                    apt install -y mysql-server ;;
+            esac
+            systemctl enable mysql
+            systemctl start mysql
+            ;;
+        centos|rhel|fedora)
+            case $db_choice in
+                1) 
+                    yum install -y https://dev.mysql.com/get/mysql57-community-release-el$(rpm -E %rhel)-11.noarch.rpm || \
+                    dnf install -y https://dev.mysql.com/get/mysql57-community-release-fc${VERSION_CODENAME}-11.noarch.rpm
+                    yum install -y mysql-community-server-5.7.* || dnf install -y mysql-community-server-5.7.*
+                    ;;
+                2) 
+                    yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm || \
+                    dnf install -y https://dev.mysql.com/get/mysql80-community-release-fc${VERSION_CODENAME}-1.noarch.rpm
+                    yum install -y mysql-community-server || dnf install -y mysql-community-server
+                    ;;
+                *) echo -e "${RED}无效选项，使用MySQL 8.2${NC}"; 
+                    yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm || \
+                    dnf install -y https://dev.mysql.com/get/mysql80-community-release-fc${VERSION_CODENAME}-1.noarch.rpm
+                    yum install -y mysql-community-server || dnf install -y mysql-community-server
+                    ;;
+            esac
+            systemctl enable mysqld
+            systemctl start mysqld
+            ;;
+        *)
+            echo -e "${RED}不支持的操作系统: $OS${NC}"
+            exit 1
+            ;;
+    esac
 
     # 用户交互设置root密码
     echo -e "${YELLOW}设置MySQL root 用户密码${NC}"
@@ -178,7 +224,7 @@ install_mariadb() {
     # 修改配置文件以监听所有接口
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ]; then
         sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf
     fi
 
@@ -200,63 +246,89 @@ install_mariadb() {
     echo -e "${GREEN}MySQL root 密码已设置，3306端口已开启，可远程访问${NC}"
 }
 
-# 安装PHP（修正为Debian兼容，仅提供7.4和8.1版本）
+# 安装PHP（兼容所有Linux系统，仅提供7.4和8.1版本）
 install_php() {
     echo -e "${YELLOW}=== 选择PHP版本 ===${NC}"
     echo "1. PHP 7.4"
     echo "2. PHP 8.1"
     read -p "请选择PHP版本 [1-2]: " php_choice
-    if [ "$OS" = "ubuntu" ]; then
-        add-apt-repository ppa:ondrej/php -y
-        apt update -y
-        case $php_choice in
-            1) PHP_VER="7.4" ;;
-            2) PHP_VER="8.1" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
-        esac
-        apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
-        systemctl enable php${PHP_VER}-fpm
-        systemctl start php${PHP_VER}-fpm
-    elif [ "$OS" = "debian" ]; then
-        # 为Debian添加Ondřej Surý的PHP源
-        echo "deb https://packages.sury.org/php/ ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/php.list
-        wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
-        apt update -y || { echo -e "${RED}PHP源更新失败，请检查网络${NC}"; exit 1; }
-        case $php_choice in
-            1) PHP_VER="7.4" ;;
-            2) PHP_VER="8.1" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
-        esac
-        apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
-        systemctl enable php${PHP_VER}-fpm
-        systemctl start php${PHP_VER}-fpm
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        yum install -y https://rpms.remirepo.net/enterprise/remi-release-$(rpm -E %rhel).rpm
-        yum module reset php -y
-        case $php_choice in
-            1) yum module enable php:remi-7.4 -y; PHP_VER="7.4" ;;
-            2) yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
-        esac
-        yum install -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
-        systemctl enable php-fpm
-        systemctl start php-fpm
-    fi
+    case $OS in
+        ubuntu)
+            apt install -y software-properties-common
+            add-apt-repository -y ppa:ondrej/php
+            apt update -y
+            case $php_choice in
+                1) PHP_VER="7.4" ;;
+                2) PHP_VER="8.1" ;;
+                *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
+            esac
+            apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
+            systemctl enable php${PHP_VER}-fpm
+            systemctl start php${PHP_VER}-fpm
+            ;;
+        debian)
+            echo "deb https://packages.sury.org/php/ ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/php.list
+            wget -qO - https://packages.sury.org/php/apt.gpg | apt-key add -
+            apt update -y || { echo -e "${RED}PHP源更新失败，请检查网络${NC}"; exit 1; }
+            case $php_choice in
+                1) PHP_VER="7.4" ;;
+                2) PHP_VER="8.1" ;;
+                *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
+            esac
+            apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
+            systemctl enable php${PHP_VER}-fpm
+            systemctl start php${PHP_VER}-fpm
+            ;;
+        centos|rhel)
+            yum install -y https://rpms.remirepo.net/enterprise/remi-release-$(rpm -E %rhel).rpm
+            yum module reset php -y
+            case $php_choice in
+                1) yum module enable php:remi-7.4 -y; PHP_VER="7.4" ;;
+                2) yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
+                *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
+            esac
+            yum install -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
+            systemctl enable php-fpm
+            systemctl start php-fpm
+            ;;
+        fedora)
+            dnf module reset php -y
+            case $php_choice in
+                1) dnf module enable php:7.4 -y; PHP_VER="7.4" ;;
+                2) dnf module enable php:8.1 -y; PHP_VER="8.1" ;;
+                *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; dnf module enable php:8.1 -y; PHP_VER="8.1" ;;
+            esac
+            dnf install -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
+            systemctl enable php-fpm
+            systemctl start php-fpm
+            ;;
+        *)
+            echo -e "${RED}不支持的操作系统: $OS${NC}"
+            exit 1
+            ;;
+    esac
     echo "$PHP_VER"
 }
 
 # 安装最新Redis
 install_redis() {
     echo -e "${YELLOW}正在安装最新版Redis...${NC}"
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        apt install -y redis-server
-        systemctl enable redis-server
-        systemctl start redis-server
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        yum install -y redis
-        systemctl enable redis
-        systemctl tailor redis
-    fi
+    case $OS in
+        ubuntu|debian)
+            apt install -y redis-server
+            systemctl enable redis-server
+            systemctl start redis-server
+            ;;
+        centos|rhel|fedora)
+            yum install -y redis || dnf install -y redis
+            systemctl enable redis
+            systemctl start redis
+            ;;
+        *)
+            echo -e "${RED}不支持的操作系统: $OS${NC}"
+            exit 1
+            ;;
+    esac
 }
 
 # 配置Nginx支持PHP
@@ -288,7 +360,7 @@ server {
 }
 EOF
         ln -sf /etc/nginx/sites-available/default /etc/nginx/sites-enabled/
-    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ] || [ "$OS" = "fedora" ]; then
         cat > /etc/nginx/conf.d/default.conf <<EOF
 server {
     listen 80;
@@ -390,43 +462,56 @@ uninstall_component() {
     case $uninstall_choice in
         1) 
             systemctl stop nginx
-            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-                apt purge -y nginx nginx-common nginx-full
-                rm -rf /etc/nginx
-            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-                yum remove -y nginx
-                rm -rf /etc/nginx
-            fi
+            case $OS in
+                ubuntu|debian)
+                    apt purge -y nginx nginx-common nginx-full
+                    rm -rf /etc/nginx
+                    ;;
+                centos|rhel|fedora)
+                    yum remove -y nginx || dnf remove -y nginx
+                    rm -rf /etc/nginx
+                    ;;
+            esac
             echo -e "${GREEN}Nginx已卸载${NC}" ;;
         2) 
             systemctl stop mysql || systemctl stop mysqld
-            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-                apt purge -y mysql-server mysql-client
-                rm -rf /etc/mysql /var/lib/mysql
-            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-                yum remove -y mysql-community-server
-                rm -rf /etc/my.cnf /var/lib/mysql
-            fi
+            case $OS in
+                ubuntu|debian)
+                    apt purge -y mysql-server mysql-client
+                    rm -rf /etc/mysql /var/lib/mysql
+                    ;;
+                centos|rhel|fedora)
+                    yum remove -y mysql-community-server || dnf remove -y mysql-community-server
+                    rm -rf /etc/my.cnf /var/lib/mysql
+                    ;;
+            esac
             echo -e "${GREEN}MySQL已卸载${NC}" ;;
         3) 
             systemctl stop php*-fpm
-            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-                apt purge -y php7.4* php8.1*
-                rm -rf /etc/php
-            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-                yum remove -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
-                rm -rf /etc/php.d /etc/php.ini
-            fi
+            case $OS in
+                ubuntu|debian)
+                    apt purge -y php7.4* php8.1*
+                    rm -rf /etc/php
+                    ;;
+                centos|rhel|fedora)
+                    yum remove -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd || \
+                    dnf remove -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
+                    rm -rf /etc/php.d /etc/php.ini
+                    ;;
+            esac
             echo -e "${GREEN}PHP已卸载${NC}" ;;
         4) 
             systemctl stop redis
-            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-                apt purge -y redis-server
-                rm -rf /etc/redis
-            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-                yum remove -y redis
-                rm -rf /etc/redis
-            fi
+            case $OS in
+                ubuntu|debian)
+                    apt purge -y redis-server
+                    rm -rf /etc/redis
+                    ;;
+                centos|rhel|fedora)
+                    yum remove -y redis || dnf remove -y redis
+                    rm -rf /etc/redis
+                    ;;
+            esac
             echo -e "${GREEN}Redis已卸载${NC}" ;;
         5) 
             systemctl stop lnmp_panel
@@ -436,15 +521,19 @@ uninstall_component() {
             echo -e "${GREEN}管理面板已卸载${NC}" ;;
         6) 
             systemctl stop nginx mysql mysqld php*-fpm redis lnmp_panel
-            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-                apt purge -y nginx nginx-common nginx-full mysql-server mysql-client php7.4* php8.1* redis-server
-                apt autoremove -y
-                rm -rf /etc/nginx /etc/mysql /var/lib/mysql /etc/php /etc/redis /opt/lnmp_panel
-            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-                yum remove -y nginx mysql-community-server php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd redis
-                yum autoremove -y
-                rm -rf /etc/nginx /etc/my.cnf /var/lib/mysql /etc/php.d /etc/php.ini /etc/redis /opt/lnmp_panel
-            fi
+            case $OS in
+                ubuntu|debian)
+                    apt purge -y nginx nginx-common nginx-full mysql-server mysql-client php7.4* php8.1* redis-server
+                    apt autoremove -y
+                    rm -rf /etc/nginx /etc/mysql /var/lib/mysql /etc/php /etc/redis /opt/lnmp_panel
+                    ;;
+                centos|rhel|fedora)
+                    yum remove -y nginx mysql-community-server php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd redis || \
+                    dnf remove -y nginx mysql-community-server php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd redis
+                    yum autoremove -y || dnf autoremove -y
+                    rm -rf /etc/nginx /etc/my.cnf /var/lib/mysql /etc/php.d /etc/php.ini /etc/redis /opt/lnmp_panel
+                    ;;
+            esac
             systemctl disable lnmp_panel
             rm -f /etc/systemd/system/lnmp_panel.service
             echo -e "${GREEN}所有LNMP组件已卸载${NC}" ;;
