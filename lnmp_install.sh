@@ -111,12 +111,14 @@ install_nginx() {
     fi
 }
 
-# 安装MariaDB
+# 安装MariaDB并设置root密码，开启3306端口
 install_mariadb() {
     echo -e "${YELLOW}=== 选择MariaDB版本 ===${NC}"
     echo "1. MariaDB 10.5 (稳定版)"
     echo "2. MariaDB 10.11 (最新版)"
     read -p "请选择MariaDB版本 [1-2]: " mariadb_choice
+
+    # 安装MariaDB
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         case $mariadb_choice in
             1) apt install -y mariadb-server-10.5 mariadb-client-10.5 ;;
@@ -141,7 +143,46 @@ install_mariadb() {
         systemctl enable mariadb
         systemctl start mariadb
     fi
-    mysql_secure_installation
+
+    # 用户交互设置root密码
+    echo -e "${YELLOW}设置MariaDB root用户密码${NC}"
+    read -s -p "请输入root密码: " ROOT_PASSWORD
+    echo
+    read -s -p "请再次输入root密码以确认: " ROOT_PASSWORD_CONFIRM
+    echo
+    if [ "$ROOT_PASSWORD" != "$ROOT_PASSWORD_CONFIRM" ]; then
+        echo -e "${RED}两次输入的密码不一致，请重新运行脚本${NC}"
+        exit 1
+    fi
+
+    # 设置root密码并开启远程访问
+    mysql -e "SET PASSWORD FOR 'root'@'localhost' = PASSWORD('$ROOT_PASSWORD');"
+    mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '$ROOT_PASSWORD' WITH GRANT OPTION;"
+    mysql -e "FLUSH PRIVILEGES;"
+
+    # 修改MariaDB配置文件以监听所有接口
+    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+    elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf
+    fi
+
+    # 重启MariaDB服务
+    systemctl restart mariadb
+
+    # 打开防火墙3306端口
+    if command -v ufw &> /dev/null; then
+        ufw allow 3306
+        echo -e "${GREEN}已通过ufw开启3306端口${NC}"
+    elif command -v firewall-cmd &> /dev/null; then
+        firewall-cmd --permanent --add-port=3306/tcp
+        firewall-cmd --reload
+        echo -e "${GREEN}已通过firewalld开启3306端口${NC}"
+    else
+        echo -e "${YELLOW}未检测到ufw或firewalld，请手动开启3306端口${NC}"
+    fi
+
+    echo -e "${GREEN}MariaDB root密码已设置，3306端口已开启，可远程访问${NC}"
 }
 
 # 安装PHP
