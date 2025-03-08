@@ -16,6 +16,7 @@ fi
 if [ -f /etc/os-release ]; then
     . /etc/os-release
     OS=$ID
+    VERSION_CODENAME=$VERSION_CODENAME
 else
     echo -e "${RED}无法检测操作系统${NC}"
     exit 1
@@ -199,15 +200,28 @@ install_mariadb() {
     echo -e "${GREEN}MySQL root 密码已设置，3306端口已开启，可远程访问${NC}"
 }
 
-# 安装PHP（仅提供7.4和8.1版本）
+# 安装PHP（修正为Debian兼容，仅提供7.4和8.1版本）
 install_php() {
     echo -e "${YELLOW}=== 选择PHP版本 ===${NC}"
     echo "1. PHP 7.4"
     echo "2. PHP 8.1"
     read -p "请选择PHP版本 [1-2]: " php_choice
-    if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+    if [ "$OS" = "ubuntu" ]; then
         add-apt-repository ppa:ondrej/php -y
         apt update -y
+        case $php_choice in
+            1) PHP_VER="7.4" ;;
+            2) PHP_VER="8.1" ;;
+            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
+        esac
+        apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
+        systemctl enable php${PHP_VER}-fpm
+        systemctl start php${PHP_VER}-fpm
+    elif [ "$OS" = "debian" ]; then
+        # 为Debian添加Ondřej Surý的PHP源
+        echo "deb https://packages.sury.org/php/ ${VERSION_CODENAME} main" > /etc/apt/sources.list.d/php.list
+        wget -O /etc/apt/trusted.gpg.d/php.gpg https://packages.sury.org/php/apt.gpg
+        apt update -y || { echo -e "${RED}PHP源更新失败，请检查网络${NC}"; exit 1; }
         case $php_choice in
             1) PHP_VER="7.4" ;;
             2) PHP_VER="8.1" ;;
@@ -241,7 +255,7 @@ install_redis() {
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
         yum install -y redis
         systemctl enable redis
-        systemctl start redis
+        systemctl tailor redis
     fi
 }
 
