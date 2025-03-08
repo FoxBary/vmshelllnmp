@@ -27,11 +27,11 @@ install_curl_wget() {
     if ! command -v curl &> /dev/null || ! command -v wget &> /dev/null; then
         echo -e "${YELLOW}curl或wget未安装，正在安装...${NC}"
         if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-            apt update -y
-            apt install -y curl wget
+            apt update -y || { echo -e "${RED}更新失败，请检查网络${NC}"; exit 1; }
+            apt install -y curl wget || { echo -e "${RED}安装失败${NC}"; exit 1; }
         elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-            yum update -y
-            yum install -y curl wget
+            yum update -y || { echo -e "${RED}更新失败，请检查网络${NC}"; exit 1; }
+            yum install -y curl wget || { echo -e "${RED}安装失败${NC}"; exit 1; }
         else
             echo -e "${RED}不支持的操作系统${NC}"
             exit 1
@@ -47,14 +47,9 @@ install_git() {
     if ! command -v git &> /dev/null; then
         echo -e "${YELLOW}Git未安装，正在安装...${NC}"
         if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-            apt update -y
-            apt install -y git
+            apt install -y git || { echo -e "${RED}Git安装失败${NC}"; exit 1; }
         elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-            yum update -y
-            yum install -y git
-        else
-            echo -e "${RED}不支持的操作系统${NC}"
-            exit 1
+            yum install -y git || { echo -e "${RED}Git安装失败${NC}"; exit 1; }
         fi
     else
         echo -e "${GREEN}Git已安装${NC}"
@@ -66,11 +61,11 @@ install_git() {
 install_dependencies() {
     echo -e "${YELLOW}正在更新系统并安装基本依赖...${NC}"
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        apt update -y && apt upgrade -y
-        apt install -y unzip software-properties-common
+        apt update -y && apt upgrade -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
+        apt install -y unzip software-properties-common || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        yum update -y
-        yum install -y epel-release
+        yum update -y || { echo -e "${RED}更新失败${NC}"; exit 1; }
+        yum install -y epel-release || { echo -e "${RED}依赖安装失败${NC}"; exit 1; }
     else
         echo -e "${RED}不支持的操作系统${NC}"
         exit 1
@@ -84,10 +79,10 @@ install_nodejs_npm() {
         echo -e "${YELLOW}Node.js或npm未安装，正在安装...${NC}"
         if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
             curl -fsSL https://deb.nodesource.com/setup_18.x | bash -
-            apt install -y nodejs
+            apt install -y nodejs || { echo -e "${RED}Node.js安装失败${NC}"; exit 1; }
         elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
             curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-            yum install -y nodejs
+            yum install -y nodejs || { echo -e "${RED}Node.js安装失败${NC}"; exit 1; }
         fi
     else
         echo -e "${GREEN}Node.js和npm已安装${NC}"
@@ -95,104 +90,76 @@ install_nodejs_npm() {
     node -v && npm -v
 }
 
-# 安装Nginx（增加1.20和1.21版本）
+# 安装Nginx（仅提供1.20和1.21版本）
 install_nginx() {
     echo -e "${YELLOW}=== 选择Nginx版本 ===${NC}"
-    echo "1. Nginx Stable (最新稳定版)"
-    echo "2. Nginx Mainline (最新开发版)"
-    echo "3. Nginx 1.20"
-    echo "4. Nginx 1.21"
-    read -p "请选择Nginx版本 [1-4]: " nginx_choice
+    echo "1. Nginx 1.20"
+    echo "2. Nginx 1.21"
+    read -p "请选择Nginx版本 [1-2]: " nginx_choice
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         case $nginx_choice in
-            1) apt install -y nginx ;;
-            2) 
-                add-apt-repository ppa:nginx/development -y
-                apt update -y
-                apt install -y nginx ;;
-            3) 
-                apt install -y nginx=1.20.* ;;
-            4) 
-                apt install -y nginx=1.21.* ;;
-            *) echo -e "${RED}无效选项，使用默认稳定版${NC}"; apt install -y nginx ;;
+            1) apt install -y nginx=1.20.* ;;
+            2) apt install -y nginx=1.21.* ;;
+            *) echo -e "${RED}无效选项，使用Nginx 1.21${NC}"; apt install -y nginx=1.21.* ;;
         esac
         systemctl enable nginx
         systemctl start nginx
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
         case $nginx_choice in
-            1) yum install -y nginx ;;
-            2) 
-                yum install -y yum-utils
-                echo "[nginx-mainline]" > /etc/yum.repos.d/nginx-mainline.repo
-                echo "name=nginx mainline repo" >> /etc/yum.repos.d/nginx-mainline.repo
-                echo "baseurl=http://nginx.org/packages/mainline/centos/\$releasever/\$basearch/" >> /etc/yum.repos.d/nginx-mainline.repo
-                echo "gpgcheck=1" >> /etc/yum.repos.d/nginx-mainline.repo
-                echo "enabled=1" >> /etc/yum.repos.d/nginx-mainline.repo
-                echo "gpgkey=https://nginx.org/keys/nginx_signing.key" >> /etc/yum.repos.d/nginx-mainline.repo
-                yum install -y nginx ;;
-            3) 
-                yum install -y nginx-1.20.* ;;
-            4) 
-                yum install -y nginx-1.21.* ;;
-            *) echo -e "${RED}无效选项，使用默认稳定版${NC}"; yum install -y nginx ;;
+            1) yum install -y nginx-1.20.* ;;
+            2) yum install -y nginx-1.21.* ;;
+            *) echo -e "${RED}无效选项，使用Nginx 1.21${NC}"; yum install -y nginx-1.21.* ;;
         esac
         systemctl enable nginx
         systemctl start nginx
     fi
 }
 
-# 安装MySQL/MariaDB（增加MySQL 5.7和8.2版本）
+# 安装MySQL（仅提供5.7和8.2版本）
 install_mariadb() {
-    echo -e "${YELLOW}=== 选择数据库版本 ===${NC}"
-    echo "1. MariaDB 10.5 (稳定版)"
-    echo "2. MariaDB 10.11 (最新版)"
-    echo "3. MySQL 5.7"
-    echo "4. MySQL 8.2"
-    read -p "请选择数据库版本 [1-4]: " db_choice
+    echo -e "${YELLOW}=== 选择MySQL版本 ===${NC}"
+    echo "1. MySQL 5.7"
+    echo "2. MySQL 8.2"
+    read -p "请选择MySQL版本 [1-2]: " db_choice
 
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         case $db_choice in
-            1) apt install -y mariadb-server-10.5 mariadb-client-10.5 ;;
-            2) 
-                wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
-                bash mariadb_repo_setup --mariadb-server-version="mariadb-10.11"
-                apt update -y
-                apt install -y mariadb-server mariadb-client ;;
-            3) 
+            1) 
                 wget https://dev.mysql.com/get/mysql-apt-config_0.8.23-1_all.deb
                 dpkg -i mysql-apt-config_0.8.23-1_all.deb
                 apt update -y
                 apt install -y mysql-server=5.7.* ;;
-            4) 
+            2) 
                 wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
                 dpkg -i mysql-apt-config_0.8.29-1_all.deb
                 apt update -y
                 apt install -y mysql-server ;;
-            *) echo -e "${RED}无效选项，使用MariaDB默认版${NC}"; apt install -y mariadb-server ;;
+            *) echo -e "${RED}无效选项，使用MySQL 8.2${NC}"; 
+                wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
+                dpkg -i mysql-apt-config_0.8.29-1_all.deb
+                apt update -y
+                apt install -y mysql-server ;;
         esac
-        systemctl enable mysql || systemctl enable mariadb
-        systemctl start mysql || systemctl start mariadb
+        systemctl enable mysql
+        systemctl start mysql
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
         case $db_choice in
-            1) yum install -y mariadb-server-10.5 mariadb-10.5 ;;
-            2) 
-                wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
-                bash mariadb_repo_setup --mariadb-server-version="mariadb-10.11"
-                yum install -y mariadb-server mariadb ;;
-            3) 
+            1) 
                 yum install -y https://dev.mysql.com/get/mysql57-community-release-el$(rpm -E %rhel)-11.noarch.rpm
                 yum install -y mysql-community-server-5.7.* ;;
-            4) 
+            2) 
                 yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm
                 yum install -y mysql-community-server ;;
-            *) echo -e "${RED}无效选项，使用MariaDB默认版${NC}"; yum install -y mariadb-server ;;
+            *) echo -e "${RED}无效选项，使用MySQL 8.2${NC}"; 
+                yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm
+                yum install -y mysql-community-server ;;
         esac
-        systemctl enable mysqld || systemctl enable mariadb
-        systemctl start mysqld || systemctl start mariadb
+        systemctl enable mysqld
+        systemctl start mysqld
     fi
 
     # 用户交互设置root密码
-    echo -e "${YELLOW}设置数据库 root 用户密码${NC}"
+    echo -e "${YELLOW}设置MySQL root 用户密码${NC}"
     read -s -p "请输入root密码: " ROOT_PASSWORD
     echo
     read -s -p "请再次输入root密码以确认: " ROOT_PASSWORD_CONFIRM
@@ -209,17 +176,13 @@ install_mariadb() {
 
     # 修改配置文件以监听所有接口
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        if [ "$db_choice" -le 2 ]; then
-            sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
-        else
-            sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
-        fi
+        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf || sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf
+        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf
     fi
 
     # 重启服务
-    systemctl restart mysql || systemctl restart mariadb || systemctl restart mysqld
+    systemctl restart mysql || systemctl restart mysqld
 
     # 打开防火墙3306端口
     if command -v ufw &> /dev/null; then
@@ -233,22 +196,22 @@ install_mariadb() {
         echo -e "${YELLOW}未检测到ufw或firewalld，请手动开启3306端口${NC}"
     fi
 
-    echo -e "${GREEN}数据库 root 密码已设置，3306端口已开启，可远程访问${NC}"
+    echo -e "${GREEN}MySQL root 密码已设置，3306端口已开启，可远程访问${NC}"
 }
 
-# 安装PHP（优化为7.4和8.2版本）
+# 安装PHP（仅提供7.4和8.1版本）
 install_php() {
     echo -e "${YELLOW}=== 选择PHP版本 ===${NC}"
     echo "1. PHP 7.4"
-    echo "2. PHP 8.2"
+    echo "2. PHP 8.1"
     read -p "请选择PHP版本 [1-2]: " php_choice
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         add-apt-repository ppa:ondrej/php -y
         apt update -y
         case $php_choice in
             1) PHP_VER="7.4" ;;
-            2) PHP_VER="8.2" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.2${NC}"; PHP_VER="8.2" ;;
+            2) PHP_VER="8.1" ;;
+            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
         esac
         apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
         systemctl enable php${PHP_VER}-fpm
@@ -258,8 +221,8 @@ install_php() {
         yum module reset php -y
         case $php_choice in
             1) yum module enable php:remi-7.4 -y; PHP_VER="7.4" ;;
-            2) yum module enable php:remi-8.2 -y; PHP_VER="8.2" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.2${NC}"; yum module enable php:remi-8.2 -y; PHP_VER="8.2" ;;
+            2) yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
+            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
         esac
         yum install -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
         systemctl enable php-fpm
@@ -348,17 +311,13 @@ setup_management_panel() {
     read -s -p "请输入管理面板密码: " PASSWORD
     echo
 
-    # 安装Node.js和npm
     install_nodejs_npm
-
-    # 创建管理面板目录
     mkdir -p /opt/lnmp_panel
     cp panel.js /opt/lnmp_panel/
     cp package.json /opt/lnmp_panel/
     cd /opt/lnmp_panel
     npm install
 
-    # 创建配置文件
     cat > /opt/lnmp_panel/config.json <<EOF
 {
     "port": $PORT,
@@ -367,7 +326,6 @@ setup_management_panel() {
 }
 EOF
 
-    # 设置服务
     cat > /etc/systemd/system/lnmp_panel.service <<EOF
 [Unit]
 Description=LNMP Management Panel
@@ -403,12 +361,90 @@ install_lnmp() {
     echo -e "${GREEN}LNMP环境及管理面板安装完成！${NC}"
 }
 
+# 卸载函数
+uninstall_component() {
+    echo -e "${YELLOW}=== 选择要卸载的组件 ===${NC}"
+    echo "1. 卸载Nginx"
+    echo "2. 卸载MySQL"
+    echo "3. 卸载PHP"
+    echo "4. 卸载Redis"
+    echo "5. 卸载管理面板"
+    echo "6. 卸载所有LNMP组件"
+    echo "7. 返回主菜单"
+    read -p "请选择操作 [1-7]: " uninstall_choice
+
+    case $uninstall_choice in
+        1) 
+            systemctl stop nginx
+            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+                apt purge -y nginx nginx-common nginx-full
+                rm -rf /etc/nginx
+            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+                yum remove -y nginx
+                rm -rf /etc/nginx
+            fi
+            echo -e "${GREEN}Nginx已卸载${NC}" ;;
+        2) 
+            systemctl stop mysql || systemctl stop mysqld
+            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+                apt purge -y mysql-server mysql-client
+                rm -rf /etc/mysql /var/lib/mysql
+            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+                yum remove -y mysql-community-server
+                rm -rf /etc/my.cnf /var/lib/mysql
+            fi
+            echo -e "${GREEN}MySQL已卸载${NC}" ;;
+        3) 
+            systemctl stop php*-fpm
+            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+                apt purge -y php7.4* php8.1*
+                rm -rf /etc/php
+            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+                yum remove -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
+                rm -rf /etc/php.d /etc/php.ini
+            fi
+            echo -e "${GREEN}PHP已卸载${NC}" ;;
+        4) 
+            systemctl stop redis
+            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+                apt purge -y redis-server
+                rm -rf /etc/redis
+            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+                yum remove -y redis
+                rm -rf /etc/redis
+            fi
+            echo -e "${GREEN}Redis已卸载${NC}" ;;
+        5) 
+            systemctl stop lnmp_panel
+            systemctl disable lnmp_panel
+            rm -f /etc/systemd/system/lnmp_panel.service
+            rm -rf /opt/lnmp_panel
+            echo -e "${GREEN}管理面板已卸载${NC}" ;;
+        6) 
+            systemctl stop nginx mysql mysqld php*-fpm redis lnmp_panel
+            if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+                apt purge -y nginx nginx-common nginx-full mysql-server mysql-client php7.4* php8.1* redis-server
+                apt autoremove -y
+                rm -rf /etc/nginx /etc/mysql /var/lib/mysql /etc/php /etc/redis /opt/lnmp_panel
+            elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+                yum remove -y nginx mysql-community-server php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd redis
+                yum autoremove -y
+                rm -rf /etc/nginx /etc/my.cnf /var/lib/mysql /etc/php.d /etc/php.ini /etc/redis /opt/lnmp_panel
+            fi
+            systemctl disable lnmp_panel
+            rm -f /etc/systemd/system/lnmp_panel.service
+            echo -e "${GREEN}所有LNMP组件已卸载${NC}" ;;
+        7) return ;;
+        *) echo -e "${RED}无效选项${NC}" ;;
+    esac
+}
+
 # 服务管理菜单
 manage_services() {
     while true; do
         echo -e "${YELLOW}=== LNMP 服务管理 ===${NC}"
         echo "1. 重启Nginx"
-        echo "2. 重启MySQL/MariaDB"
+        echo "2. 重启MySQL"
         echo "3. 重启PHP-FPM (选择版本)"
         echo "4. 重启Redis"
         echo "5. 重启管理面板"
@@ -418,21 +454,21 @@ manage_services() {
         read -p "请选择操作 [1-8]: " choice
         case $choice in
             1) systemctl restart nginx ;;
-            2) systemctl restart mysql || systemctl restart mariadb || systemctl restart mysqld ;;
+            2) systemctl restart mysql || systemctl restart mysqld ;;
             3) 
                 echo "选择PHP版本:"
                 echo "1. PHP 7.4"
-                echo "2. PHP 8.2"
+                echo "2. PHP 8.1"
                 read -p "请输入 [1-2]: " php_ver_choice
                 case $php_ver_choice in
                     1) systemctl restart php7.4-fpm ;;
-                    2) systemctl restart php8.2-fpm ;;
+                    2) systemctl restart php8.1-fpm ;;
                     *) echo -e "${RED}无效选项${NC}" ;;
                 esac ;;
             4) systemctl restart redis ;;
             5) systemctl restart lnmp_panel ;;
-            6) systemctl stop nginx mysql mariadb php*-fpm redis lnmp_panel || systemctl stop mysqld ;;
-            7) systemctl start nginx mysql mariadb php*-fpm redis lnmp_panel || systemctl start mysqld ;;
+            6) systemctl stop nginx mysql mysqld php*-fpm redis lnmp_panel ;;
+            7) systemctl start nginx mysql mysqld php*-fpm redis lnmp_panel ;;
             8) break ;;
             *) echo -e "${RED}无效选项${NC}" ;;
         esac
@@ -445,12 +481,14 @@ main_menu() {
         echo -e "${YELLOW}=== LNMP 管理面板 ===${NC}"
         echo "1. 一键安装LNMP（含Redis和管理面板）"
         echo "2. 管理服务"
-        echo "3. 退出"
-        read -p "请选择操作 [1-3]: " choice
+        echo "3. 卸载组件"
+        echo "4. 退出"
+        read -p "请选择操作 [1-4]: " choice
         case $choice in
             1) install_lnmp ;;
             2) manage_services ;;
-            3) echo -e "${GREEN}退出程序${NC}"; exit 0 ;;
+            3) uninstall_component ;;
+            4) echo -e "${GREEN}退出程序${NC}"; exit 0 ;;
             *) echo -e "${RED}无效选项${NC}" ;;
         esac
     done
