@@ -21,6 +21,26 @@ else
     exit 1
 fi
 
+# 检查并安装curl和wget
+install_curl_wget() {
+    echo -e "${YELLOW}检查并安装curl和wget...${NC}"
+    if ! command -v curl &> /dev/null || ! command -v wget &> /dev/null; then
+        echo -e "${YELLOW}curl或wget未安装，正在安装...${NC}"
+        if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
+            apt update -y
+            apt install -y curl wget
+        elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
+            yum update -y
+            yum install -y curl wget
+        else
+            echo -e "${RED}不支持的操作系统${NC}"
+            exit 1
+        fi
+    else
+        echo -e "${GREEN}curl和wget已安装${NC}"
+    fi
+}
+
 # 检查并安装Git
 install_git() {
     echo -e "${YELLOW}检查并安装Git...${NC}"
@@ -47,10 +67,10 @@ install_dependencies() {
     echo -e "${YELLOW}正在更新系统并安装基本依赖...${NC}"
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         apt update -y && apt upgrade -y
-        apt install -y curl wget unzip software-properties-common
+        apt install -y unzip software-properties-common
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
         yum update -y
-        yum install -y curl wget unzip epel-release
+        yum install -y epel-release
     else
         echo -e "${RED}不支持的操作系统${NC}"
         exit 1
@@ -75,12 +95,14 @@ install_nodejs_npm() {
     node -v && npm -v
 }
 
-# 安装Nginx
+# 安装Nginx（增加1.20和1.21版本）
 install_nginx() {
     echo -e "${YELLOW}=== 选择Nginx版本 ===${NC}"
-    echo "1. Nginx Stable (默认稳定版)"
+    echo "1. Nginx Stable (最新稳定版)"
     echo "2. Nginx Mainline (最新开发版)"
-    read -p "请选择Nginx版本 [1-2]: " nginx_choice
+    echo "3. Nginx 1.20"
+    echo "4. Nginx 1.21"
+    read -p "请选择Nginx版本 [1-4]: " nginx_choice
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         case $nginx_choice in
             1) apt install -y nginx ;;
@@ -88,6 +110,10 @@ install_nginx() {
                 add-apt-repository ppa:nginx/development -y
                 apt update -y
                 apt install -y nginx ;;
+            3) 
+                apt install -y nginx=1.20.* ;;
+            4) 
+                apt install -y nginx=1.21.* ;;
             *) echo -e "${RED}无效选项，使用默认稳定版${NC}"; apt install -y nginx ;;
         esac
         systemctl enable nginx
@@ -104,6 +130,10 @@ install_nginx() {
                 echo "enabled=1" >> /etc/yum.repos.d/nginx-mainline.repo
                 echo "gpgkey=https://nginx.org/keys/nginx_signing.key" >> /etc/yum.repos.d/nginx-mainline.repo
                 yum install -y nginx ;;
+            3) 
+                yum install -y nginx-1.20.* ;;
+            4) 
+                yum install -y nginx-1.21.* ;;
             *) echo -e "${RED}无效选项，使用默认稳定版${NC}"; yum install -y nginx ;;
         esac
         systemctl enable nginx
@@ -111,41 +141,58 @@ install_nginx() {
     fi
 }
 
-# 安装MariaDB并设置root密码，开启3306端口
+# 安装MySQL/MariaDB（增加MySQL 5.7和8.2版本）
 install_mariadb() {
-    echo -e "${YELLOW}=== 选择MariaDB版本 ===${NC}"
+    echo -e "${YELLOW}=== 选择数据库版本 ===${NC}"
     echo "1. MariaDB 10.5 (稳定版)"
     echo "2. MariaDB 10.11 (最新版)"
-    read -p "请选择MariaDB版本 [1-2]: " mariadb_choice
+    echo "3. MySQL 5.7"
+    echo "4. MySQL 8.2"
+    read -p "请选择数据库版本 [1-4]: " db_choice
 
-    # 安装MariaDB
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        case $mariadb_choice in
+        case $db_choice in
             1) apt install -y mariadb-server-10.5 mariadb-client-10.5 ;;
             2) 
                 wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
                 bash mariadb_repo_setup --mariadb-server-version="mariadb-10.11"
                 apt update -y
                 apt install -y mariadb-server mariadb-client ;;
-            *) echo -e "${RED}无效选项，使用默认版${NC}"; apt install -y mariadb-server ;;
+            3) 
+                wget https://dev.mysql.com/get/mysql-apt-config_0.8.23-1_all.deb
+                dpkg -i mysql-apt-config_0.8.23-1_all.deb
+                apt update -y
+                apt install -y mysql-server=5.7.* ;;
+            4) 
+                wget https://dev.mysql.com/get/mysql-apt-config_0.8.29-1_all.deb
+                dpkg -i mysql-apt-config_0.8.29-1_all.deb
+                apt update -y
+                apt install -y mysql-server ;;
+            *) echo -e "${RED}无效选项，使用MariaDB默认版${NC}"; apt install -y mariadb-server ;;
         esac
-        systemctl enable mariadb
-        systemctl start mariadb
+        systemctl enable mysql || systemctl enable mariadb
+        systemctl start mysql || systemctl start mariadb
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        case $mariadb_choice in
+        case $db_choice in
             1) yum install -y mariadb-server-10.5 mariadb-10.5 ;;
             2) 
                 wget https://downloads.mariadb.com/MariaDB/mariadb_repo_setup
                 bash mariadb_repo_setup --mariadb-server-version="mariadb-10.11"
                 yum install -y mariadb-server mariadb ;;
-            *) echo -e "${RED}无效选项，使用默认版${NC}"; yum install -y mariadb-server ;;
+            3) 
+                yum install -y https://dev.mysql.com/get/mysql57-community-release-el$(rpm -E %rhel)-11.noarch.rpm
+                yum install -y mysql-community-server-5.7.* ;;
+            4) 
+                yum install -y https://dev.mysql.com/get/mysql80-community-release-el$(rpm -E %rhel)-1.noarch.rpm
+                yum install -y mysql-community-server ;;
+            *) echo -e "${RED}无效选项，使用MariaDB默认版${NC}"; yum install -y mariadb-server ;;
         esac
-        systemctl enable mariadb
-        systemctl start mariadb
+        systemctl enable mysqld || systemctl enable mariadb
+        systemctl start mysqld || systemctl start mariadb
     fi
 
     # 用户交互设置root密码
-    echo -e "${YELLOW}设置MariaDB root用户密码${NC}"
+    echo -e "${YELLOW}设置数据库 root 用户密码${NC}"
     read -s -p "请输入root密码: " ROOT_PASSWORD
     echo
     read -s -p "请再次输入root密码以确认: " ROOT_PASSWORD_CONFIRM
@@ -160,15 +207,19 @@ install_mariadb() {
     mysql -e "GRANT ALL PRIVILEGES ON *.* TO 'root'@'%' IDENTIFIED BY '$ROOT_PASSWORD' WITH GRANT OPTION;"
     mysql -e "FLUSH PRIVILEGES;"
 
-    # 修改MariaDB配置文件以监听所有接口
+    # 修改配置文件以监听所有接口
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
-        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+        if [ "$db_choice" -le 2 ]; then
+            sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mariadb.conf.d/50-server.cnf
+        else
+            sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/mysql/mysql.conf.d/mysqld.cnf
+        fi
     elif [ "$OS" = "centos" ] || [ "$OS" = "rhel" ]; then
-        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf
+        sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf.d/mariadb-server.cnf || sed -i 's/bind-address\s*=\s*127.0.0.1/bind-address = 0.0.0.0/' /etc/my.cnf
     fi
 
-    # 重启MariaDB服务
-    systemctl restart mariadb
+    # 重启服务
+    systemctl restart mysql || systemctl restart mariadb || systemctl restart mysqld
 
     # 打开防火墙3306端口
     if command -v ufw &> /dev/null; then
@@ -182,26 +233,22 @@ install_mariadb() {
         echo -e "${YELLOW}未检测到ufw或firewalld，请手动开启3306端口${NC}"
     fi
 
-    echo -e "${GREEN}MariaDB root密码已设置，3306端口已开启，可远程访问${NC}"
+    echo -e "${GREEN}数据库 root 密码已设置，3306端口已开启，可远程访问${NC}"
 }
 
-# 安装PHP
+# 安装PHP（优化为7.4和8.2版本）
 install_php() {
     echo -e "${YELLOW}=== 选择PHP版本 ===${NC}"
     echo "1. PHP 7.4"
-    echo "2. PHP 8.0"
-    echo "3. PHP 8.1"
-    echo "4. PHP 8.2"
-    read -p "请选择PHP版本 [1-4]: " php_choice
+    echo "2. PHP 8.2"
+    read -p "请选择PHP版本 [1-2]: " php_choice
     if [ "$OS" = "ubuntu" ] || [ "$OS" = "debian" ]; then
         add-apt-repository ppa:ondrej/php -y
         apt update -y
         case $php_choice in
             1) PHP_VER="7.4" ;;
-            2) PHP_VER="8.0" ;;
-            3) PHP_VER="8.1" ;;
-            4) PHP_VER="8.2" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; PHP_VER="8.1" ;;
+            2) PHP_VER="8.2" ;;
+            *) echo -e "${RED}无效选项，使用PHP 8.2${NC}"; PHP_VER="8.2" ;;
         esac
         apt install -y php${PHP_VER} php${PHP_VER}-fpm php${PHP_VER}-mysql php${PHP_VER}-cli php${PHP_VER}-mbstring php${PHP_VER}-zip php${PHP_VER}-gd
         systemctl enable php${PHP_VER}-fpm
@@ -211,10 +258,8 @@ install_php() {
         yum module reset php -y
         case $php_choice in
             1) yum module enable php:remi-7.4 -y; PHP_VER="7.4" ;;
-            2) yum module enable php:remi-8.0 -y; PHP_VER="8.0" ;;
-            3) yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
-            4) yum module enable php:remi-8.2 -y; PHP_VER="8.2" ;;
-            *) echo -e "${RED}无效选项，使用PHP 8.1${NC}"; yum module enable php:remi-8.1 -y; PHP_VER="8.1" ;;
+            2) yum module enable php:remi-8.2 -y; PHP_VER="8.2" ;;
+            *) echo -e "${RED}无效选项，使用PHP 8.2${NC}"; yum module enable php:remi-8.2 -y; PHP_VER="8.2" ;;
         esac
         yum install -y php php-fpm php-mysqlnd php-cli php-mbstring php-zip php-gd
         systemctl enable php-fpm
@@ -346,6 +391,7 @@ EOF
 
 # 一键安装LNMP
 install_lnmp() {
+    install_curl_wget
     install_git
     install_dependencies
     install_nginx
@@ -362,7 +408,7 @@ manage_services() {
     while true; do
         echo -e "${YELLOW}=== LNMP 服务管理 ===${NC}"
         echo "1. 重启Nginx"
-        echo "2. 重启MariaDB"
+        echo "2. 重启MySQL/MariaDB"
         echo "3. 重启PHP-FPM (选择版本)"
         echo "4. 重启Redis"
         echo "5. 重启管理面板"
@@ -372,25 +418,21 @@ manage_services() {
         read -p "请选择操作 [1-8]: " choice
         case $choice in
             1) systemctl restart nginx ;;
-            2) systemctl restart mariadb ;;
+            2) systemctl restart mysql || systemctl restart mariadb || systemctl restart mysqld ;;
             3) 
                 echo "选择PHP版本:"
                 echo "1. PHP 7.4"
-                echo "2. PHP 8.0"
-                echo "3. PHP 8.1"
-                echo "4. PHP 8.2"
-                read -p "请输入 [1-4]: " php_ver_choice
+                echo "2. PHP 8.2"
+                read -p "请输入 [1-2]: " php_ver_choice
                 case $php_ver_choice in
                     1) systemctl restart php7.4-fpm ;;
-                    2) systemctl restart php8.0-fpm ;;
-                    3) systemctl restart php8.1-fpm ;;
-                    4) systemctl restart php8.2-fpm ;;
+                    2) systemctl restart php8.2-fpm ;;
                     *) echo -e "${RED}无效选项${NC}" ;;
                 esac ;;
             4) systemctl restart redis ;;
             5) systemctl restart lnmp_panel ;;
-            6) systemctl stop nginx mariadb php*-fpm redis lnmp_panel ;;
-            7) systemctl start nginx mariadb php*-fpm redis lnmp_panel ;;
+            6) systemctl stop nginx mysql mariadb php*-fpm redis lnmp_panel || systemctl stop mysqld ;;
+            7) systemctl start nginx mysql mariadb php*-fpm redis lnmp_panel || systemctl start mysqld ;;
             8) break ;;
             *) echo -e "${RED}无效选项${NC}" ;;
         esac
